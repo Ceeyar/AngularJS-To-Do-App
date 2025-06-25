@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
+import { authApi } from '../utils/api';
 import { Input, ErrorAlert, Button, Icon } from '../components/Index';
+import { toast } from 'react-toastify';
 
 interface LoginForm {
     username: string;
@@ -17,13 +18,14 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string>('');
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
-        if (error) setError('');
+        // Don't clear error immediately - let user see the error until they submit again
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (e: FormEvent) => {
+        e.preventDefault();
 
         if (!formData.username || !formData.password) {
             setError('Please fill in all fields');
@@ -34,13 +36,23 @@ const Login = () => {
         setError('');
 
         try {
-            const response = await api.post('/auth/login', formData);
-            console.log("response", response);
-            localStorage.setItem('token', response.data.token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
+            const response = await authApi.login({
+                username: formData.username,
+                password: formData.password
+            });
+
+            localStorage.setItem('token', response.token);
+            localStorage.setItem('user', JSON.stringify(response.user));
+
+            toast.success('Login successful');
             navigate('/');
+
         } catch (err: any) {
-            setError(err.response?.data || 'Login failed. Please try again.');
+            const errorMessage = err.response?.data?.message ||
+                err.message ||
+                'Login failed. Please check your credentials and try again.';
+            setError(errorMessage);
+            toast.error(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -71,9 +83,29 @@ const Login = () => {
 
                 {/* Login Form */}
                 <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-white/30">
-                    <form className="space-y-6" >
-                        <Input icon="user" label="Username" id="username" name="username" type="text" required value={formData.username} onChange={handleInputChange} placeholder="Enter your username" />
-                        <Input icon="password" label="Password" id="password" name="password" type="password" required value={formData.password} onChange={handleInputChange} placeholder="Enter your password" />
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <Input
+                            icon="user"
+                            label="Username"
+                            id="username"
+                            name="username"
+                            type="text"
+                            required
+                            value={formData.username}
+                            onChange={handleInputChange}
+                            placeholder="Enter your username"
+                        />
+                        <Input
+                            icon="password"
+                            label="Password"
+                            id="password"
+                            name="password"
+                            type="password"
+                            required
+                            value={formData.password}
+                            onChange={handleInputChange}
+                            placeholder="Enter your password"
+                        />
                         <div className="flex items-center justify-between">
                             <div className="flex items-center cursor-pointer">
                                 <input type="checkbox" id="remember" name="remember" className="h-4 w-4 text-blue-600 border-gray-300 rounded cursor-pointer" />
@@ -86,11 +118,35 @@ const Login = () => {
 
                         {/* Error Message */}
                         {error && (
-                            <ErrorAlert message={error} />
+                            <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center">
+                                        <svg className="h-4 w-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        <span className="text-sm font-medium">{error}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setError('')}
+                                        className="text-red-400 hover:text-red-600 transition-colors"
+                                    >
+                                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                         )}
 
                         {/* Submit Button */}
-                        <Button icon="login" onClick={handleSubmit} type="submit" isLoading={isLoading} text="Login" actionText="Signing in..." />
+                        <Button
+                            icon="login"
+                            type="submit"
+                            isLoading={isLoading}
+                            text="Login"
+                            actionText="Signing in..."
+                        />
                     </form>
 
                     {/* Register Link */}
@@ -98,6 +154,7 @@ const Login = () => {
                         <p className="text-sm text-gray-600">
                             Don't have an account?{' '}
                             <button
+                                type="button"
                                 onClick={() => navigate('/register')}
                                 className="font-semibold text-blue-600 hover:text-blue-700 transition-colors duration-200 underline decoration-2 underline-offset-2 hover:decoration-blue-700"
                             >

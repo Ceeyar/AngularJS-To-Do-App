@@ -39,4 +39,73 @@ api.interceptors.response.use(
     }
 );
 
+// Todo API functions
+export const todoApi = {
+    // Get all todos for the current user
+    getAll: async () => {
+        const response = await api.get('/todos');
+        return response.data;
+    },
+
+    // Create a new todo
+    create: async (todo: { text: string }) => {
+        const response = await api.post('/todos', todo);
+        return response.data;
+    },
+
+    // Update a todo
+    update: async (id: number, todo: { text?: string; completed?: boolean }) => {
+        const response = await api.put(`/todos/${id}`, todo);
+        return response.data;
+    },
+
+    // Delete a todo
+    delete: async (id: number) => {
+        const response = await api.delete(`/todos/${id}`);
+        return response.data;
+    },
+
+    // Toggle todo completion status
+    toggle: async (id: number, completed: boolean) => {
+        const response = await api.put(`/todos/${id}`, { completed });
+        return response.data;
+    }
+};
+
+// Auth API functions
+export const authApi = {
+    login: async (credentials: { username: string; password: string }) => {
+        const response = await api.post('/auth/login', credentials);
+        return response.data;
+    },
+
+    register: async (userData: { email: string; password: string; firstName: string; lastName: string }) => {
+        const response = await api.post('/auth/register', userData);
+        return response.data;
+    },
+
+    refreshToken: async () => {
+        const response = await api.post('/auth/refresh');
+        return response.data;
+    }
+};
+
+// User API functions
+export const userApi = {
+    getProfile: async () => {
+        const response = await api.get('/users/profile');
+        return response.data;
+    },
+
+    updateProfile: async (userData: { firstName?: string; lastName?: string; email?: string }) => {
+        const response = await api.put('/users/profile', userData);
+        return response.data;
+    },
+
+    changePassword: async (passwordData: { currentPassword: string; newPassword: string }) => {
+        const response = await api.put('/users/change-password', passwordData);
+        return response.data;
+    }
+};
+
 export default api; 
