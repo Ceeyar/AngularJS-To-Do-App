@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, type ChangeEvent } from 'react'
 import Header from '../components/Header'
-import { Icon, Input } from '../components/Index'
+import { Icon, Input, Button } from '../components/Index'
 
 const ChangePassword = () => {
     const [formData, setFormData] = useState<any>({
@@ -10,30 +10,54 @@ const ChangePassword = () => {
     });
 
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoadingProfile, setIsLoadingProfile] = useState(true);
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Only include password fields if user wants to change password
+    const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+        // Clear any previous errors when user starts typing
+        setError('');
+        setSuccess('');
+
+        // Update form data first
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+
+        // Validation
         if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
             setError('All password fields are required when changing password');
-            setIsLoading(false);
             return;
         }
 
         if (formData.newPassword !== formData.confirmPassword) {
             setError('New passwords do not match');
-            setIsLoading(false);
             return;
         }
 
         if (formData.newPassword.length < 6) {
             setError('New password must be at least 6 characters long');
-            setIsLoading(false);
             return;
         }
 
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        setIsLoading(true);
+        try {
+            // TODO: Implement API call to change password
+            // const response = await changePassword(formData);
+            setSuccess('Password changed successfully!');
+            setFormData({
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: ''
+            });
+        } catch (err: any) {
+            setError(err.message || 'Failed to change password');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const { currentPassword, newPassword, confirmPassword } = formData;
@@ -63,11 +87,24 @@ const ChangePassword = () => {
                     </div>
                     {/* Password Change Form */}
                     <div className="bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-8 border border-white/30 w-full">
-                        <form className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="space-y-4">
                                 <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2">
                                     Change Password (Optional)
                                 </h3>
+
+                                {error && (
+                                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                                        {error}
+                                    </div>
+                                )}
+
+                                {success && (
+                                    <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                                        {success}
+                                    </div>
+                                )}
+
                                 <Input
                                     icon="password"
                                     label="Current Password"
@@ -100,6 +137,14 @@ const ChangePassword = () => {
                                     value={confirmPassword}
                                     onChange={handleInputChange}
                                     placeholder="Confirm new password"
+                                />
+
+                                <Button
+                                    type="submit"
+                                    text="Change Password"
+                                    actionText="Changing Password..."
+                                    isLoading={isLoading}
+                                    classname="w-full"
                                 />
                             </div>
                         </form>
