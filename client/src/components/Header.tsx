@@ -15,7 +15,12 @@ const Header = () => {
 
     const handleProfile = () => {
         // TODO: Navigate to profile page when implemented
-        console.log('Profile clicked');
+        navigate('/profile');
+        setIsDropdownOpen(false);
+    };
+
+    const handleChangePassword = () => {
+        navigate('/password');
         setIsDropdownOpen(false);
     };
 
@@ -32,13 +37,17 @@ const Header = () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+    const pathname = window.location.pathname.split('/')[1];
 
     return (
         <div className="relative z-10 bg-white/95 backdrop-blur-md shadow-2xl border-b border-white/30">
             <div className="max-w-7xl mx-auto py-4 px-6">
                 <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg border-t-2 border-r-2 border-b-2 border-l-2 border-gray-300">
+                        <h4 className=" font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            {!pathname ? 'Home' : pathname}
+                        </h4>
+                        <div className="h-10 w-10 rounded-xl flex items-center justify-center shadow-lg border-t-2 border-r-2 border-b-2 border-l-2 border-gray-300 cursor-pointer" onClick={() => navigate('/')}>
                             <img src="/src/assets/logo.png" alt="Logo" className="h-10 w-10" />
                         </div>
                         <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
@@ -77,6 +86,16 @@ const Header = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                     </svg>
                                     <span>Profile</span>
+                                </button>
+
+                                <button
+                                    onClick={handleChangePassword}
+                                    className="w-full px-4 py-3 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-200 flex items-center space-x-3"
+                                >
+                                    <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                    <span>Change Password</span>
                                 </button>
 
                                 <button
