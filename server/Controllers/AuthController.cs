@@ -39,7 +39,10 @@ namespace server.Controllers
             var user = new User
             {
                 Username = registerDto.Username,
-                PasswordHash = passwordHash
+                PasswordHash = passwordHash,
+                FirstName = registerDto.FirstName,
+                LastName = registerDto.LastName,
+                Email = registerDto.Email
             };
 
             _context.Users.Add(user);
@@ -54,7 +57,10 @@ namespace server.Controllers
                 User = new UserDto
                 {
                     Id = user.Id,
-                    Username = user.Username
+                    Username = user.Username,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Email = user.Email
                 },
                 Token = token
             });
@@ -85,7 +91,10 @@ namespace server.Controllers
                 User = new UserDto
                 {
                     Id = user.Id,
-                    Username = user.Username
+                    Username = user.Username,
+                    FirstName = user.FirstName,
+                    LastName = user.LastName,
+                    Email = user.Email
                 },
                 Token = token
             });
@@ -98,16 +107,25 @@ namespace server.Controllers
             {
                 // Validate the current token
                 var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
+                var jwtKey = _configuration["Jwt:Key"];
+                var jwtIssuer = _configuration["Jwt:Issuer"];
+                var jwtAudience = _configuration["Jwt:Audience"];
+
+                if (string.IsNullOrEmpty(jwtKey) || string.IsNullOrEmpty(jwtIssuer) || string.IsNullOrEmpty(jwtAudience))
+                {
+                    return Unauthorized("JWT configuration is missing");
+                }
+
+                var key = Encoding.UTF8.GetBytes(jwtKey);
                 
                 tokenHandler.ValidateToken(refreshTokenDto.Token, new TokenValidationParameters
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = true,
-                    ValidIssuer = _configuration["Jwt:Issuer"],
+                    ValidIssuer = jwtIssuer,
                     ValidateAudience = true,
-                    ValidAudience = _configuration["Jwt:Audience"],
+                    ValidAudience = jwtAudience,
                     ValidateLifetime = false // We want to refresh even if token is expired
                 }, out SecurityToken validatedToken);
 
@@ -129,7 +147,10 @@ namespace server.Controllers
                     User = new UserDto
                     {
                         Id = user.Id,
-                        Username = user.Username
+                        Username = user.Username,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
+                        Email = user.Email
                     },
                     Token = newToken
                 });
@@ -155,7 +176,16 @@ namespace server.Controllers
 
         private string GenerateJwtToken(User user)
         {
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var jwtKey = _configuration["Jwt:Key"];
+            var jwtIssuer = _configuration["Jwt:Issuer"];
+            var jwtAudience = _configuration["Jwt:Audience"];
+
+            if (string.IsNullOrEmpty(jwtKey) || string.IsNullOrEmpty(jwtIssuer) || string.IsNullOrEmpty(jwtAudience))
+            {
+                throw new InvalidOperationException("JWT configuration is missing");
+            }
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var claims = new[]
@@ -165,8 +195,8 @@ namespace server.Controllers
             };
 
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
+                issuer: jwtIssuer,
+                audience: jwtAudience,
                 claims: claims,
                 expires: DateTime.Now.AddDays(7),
                 signingCredentials: credentials
@@ -181,6 +211,9 @@ namespace server.Controllers
     {
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
     }
 
     public class LoginDto
@@ -204,5 +237,8 @@ namespace server.Controllers
     {
         public int Id { get; set; }
         public string Username { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
     }
 } 
