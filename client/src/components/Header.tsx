@@ -40,6 +40,9 @@ const Header = () => {
     }, []);
     const pathname = window.location.pathname.split('/')[1];
 
+    // Check if user is admin
+    const isAdmin = Array.isArray(user.roles) && user.roles.includes('Admin');
+
     return (
         <div className="relative z-10 bg-white/95 backdrop-blur-md shadow-2xl border-b border-white/30">
             <div className="max-w-7xl mx-auto py-4 px-6">
@@ -55,6 +58,17 @@ const Header = () => {
                             {`Welcome ${user.username}`}
                         </h1>
                     </div>
+
+                    {/* Admin Manage Todos Button */}
+                    {isAdmin && (
+                        <button
+                            onClick={() => navigate('/admin')}
+                            className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-pink-500 to-purple-500 text-white rounded-xl shadow-lg hover:from-pink-600 hover:to-purple-600 transition-all duration-300 mr-4"
+                        >
+                            <Icon icon="settings" />
+                            <span>Manage Todos</span>
+                        </button>
+                    )}
 
                     {/* User Icon with Dropdown */}
                     <div className="relative" ref={dropdownRef}>
