@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using server.Data;
 using server.Models;
@@ -12,19 +13,23 @@ namespace server.Controllers
     [Authorize]
     public class UsersController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly UserManager<User> _userManager;
 
-        public UsersController(AppDbContext context)
+        public UsersController(UserManager<User> userManager)
         {
-            _context = context;
+            _userManager = userManager;
         }
 
         [HttpGet("profile")]
         public async Task<ActionResult<UserProfileDto>> GetProfile()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
             
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 return NotFound("User not found");
@@ -33,10 +38,10 @@ namespace server.Controllers
             return Ok(new UserProfileDto
             {
                 Id = user.Id,
-                Username = user.Username,
+                Username = user.UserName!,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Email = user.Email,
+                Email = user.Email!,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt
             });
@@ -45,23 +50,40 @@ namespace server.Controllers
         [HttpPut("profile")]
         public async Task<ActionResult<UserProfileDto>> UpdateProfile(UpdateProfileDto updateProfileDto)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
             
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 return NotFound("User not found");
             }
 
             // Check if new username already exists (if username is being changed)
-            if (updateProfileDto.Username != user.Username && 
-                await _context.Users.AnyAsync(u => u.Username == updateProfileDto.Username))
+            if (updateProfileDto.Username != user.UserName)
             {
-                return BadRequest("Username already exists");
+                var existingUser = await _userManager.FindByNameAsync(updateProfileDto.Username);
+                if (existingUser != null)
+                {
+                    return BadRequest("Username already exists");
+                }
+            }
+
+            // Check if new email already exists (if email is being changed)
+            if (updateProfileDto.Email != user.Email)
+            {
+                var existingUser = await _userManager.FindByEmailAsync(updateProfileDto.Email);
+                if (existingUser != null)
+                {
+                    return BadRequest("Email already exists");
+                }
             }
 
             // Update user fields
-            user.Username = updateProfileDto.Username;
+            user.UserName = updateProfileDto.Username;
             user.FirstName = updateProfileDto.FirstName;
             user.LastName = updateProfileDto.LastName;
             user.Email = updateProfileDto.Email;
@@ -71,40 +93,26 @@ namespace server.Controllers
             if (!string.IsNullOrEmpty(updateProfileDto.CurrentPassword) && 
                 !string.IsNullOrEmpty(updateProfileDto.NewPassword))
             {
-                // Verify current password
-                var currentPasswordHash = HashPassword(updateProfileDto.CurrentPassword);
-                if (user.PasswordHash != currentPasswordHash)
+                var result = await _userManager.ChangePasswordAsync(user, updateProfileDto.CurrentPassword, updateProfileDto.NewPassword);
+                if (!result.Succeeded)
                 {
-                    return BadRequest("Current password is incorrect");
+                    return BadRequest(result.Errors.Select(e => e.Description));
                 }
-
-                // Update password
-                user.PasswordHash = HashPassword(updateProfileDto.NewPassword);
             }
 
-            try
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
             {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UserExists(userId))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return BadRequest(updateResult.Errors.Select(e => e.Description));
             }
 
             return Ok(new UserProfileDto
             {
                 Id = user.Id,
-                Username = user.Username,
+                Username = user.UserName!,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Email = user.Email,
+                Email = user.Email!,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt
             });
@@ -113,114 +121,25 @@ namespace server.Controllers
         [HttpDelete("profile")]
         public async Task<IActionResult> DeleteProfile()
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
             
-            var user = await _context.Users.FindAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 return NotFound("User not found");
             }
 
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<UserDto>>> GetUsers()
-        {
-            var users = await _context.Users
-                .Select(u => new UserDto
-                {
-                    Id = u.Id,
-                    Username = u.Username
-                })
-                .ToListAsync();
-
-            return Ok(users);
-        }
-
-        [HttpGet("{id}")]
-        public async Task<ActionResult<UserDto>> GetUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-
-            if (user == null)
+            var result = await _userManager.DeleteAsync(user);
+            if (!result.Succeeded)
             {
-                return NotFound();
-            }
-
-            return Ok(new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username
-            });
-        }
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, UpdateUserDto updateUserDto)
-        {
-            var user = await _context.Users.FindAsync(id);
-
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            // Check if new username already exists (if username is being changed)
-            if (updateUserDto.Username != user.Username && 
-                await _context.Users.AnyAsync(u => u.Username == updateUserDto.Username))
-            {
-                return BadRequest("Username already exists");
-            }
-
-            user.Username = updateUserDto.Username;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UserExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                return BadRequest(result.Errors.Select(e => e.Description));
             }
 
             return NoContent();
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        private bool UserExists(int id)
-        {
-            return _context.Users.Any(e => e.Id == id);
-        }
-
-        private string HashPassword(string password)
-        {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(hashedBytes);
         }
     }
 
@@ -232,7 +151,7 @@ namespace server.Controllers
 
     public class UserProfileDto
     {
-        public int Id { get; set; }
+        public string Id { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;

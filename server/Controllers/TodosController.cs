@@ -199,31 +199,24 @@ namespace server.Controllers
         {
             var userId = GetCurrentUserId();
             
-            var todos = await _context.TodoItems
-                .Where(t => t.UserId == userId)
-                .ToListAsync();
+            var total = await _context.TodoItems.CountAsync(t => t.UserId == userId);
+            var completed = await _context.TodoItems.CountAsync(t => t.UserId == userId && t.Completed);
+            var pending = total - completed;
 
-            var stats = new TodoStatsDto
+            return Ok(new TodoStatsDto
             {
-                Total = todos.Count,
-                Completed = todos.Count(t => t.Completed),
-                Pending = todos.Count(t => !t.Completed)
-            };
-
-            return Ok(stats);
+                Total = total,
+                Completed = completed,
+                Pending = pending
+            });
         }
 
-        private int GetCurrentUserId()
+        private string GetCurrentUserId()
         {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
-            {
-                throw new UnauthorizedAccessException("Invalid user token");
-            }
-            return userId;
+            return User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
         }
 
-        private bool TodoExists(int id, int userId)
+        private bool TodoExists(int id, string userId)
         {
             return _context.TodoItems.Any(e => e.Id == id && e.UserId == userId);
         }

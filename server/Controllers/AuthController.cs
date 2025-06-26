@@ -1,9 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using server.Data;
 using server.Models;
@@ -14,53 +13,62 @@ namespace server.Controllers
     [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly UserManager<User> _userManager;
+        private readonly SignInManager<User> _signInManager;
         private readonly IConfiguration _configuration;
 
-        public AuthController(AppDbContext context, IConfiguration configuration)
+        public AuthController(UserManager<User> userManager, SignInManager<User> signInManager, IConfiguration configuration)
         {
-            _context = context;
+            _userManager = userManager;
+            _signInManager = signInManager;
             _configuration = configuration;
         }
 
         [HttpPost("register")]
         public async Task<ActionResult<AuthResponseDto>> Register(RegisterDto registerDto)
         {
-            // Check if username already exists
-            if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
+            // Check if user already exists
+            if (await _userManager.FindByEmailAsync(registerDto.Email) != null)
+            {
+                return BadRequest("Email already exists");
+            }
+
+            if (await _userManager.FindByNameAsync(registerDto.Username) != null)
             {
                 return BadRequest("Username already exists");
             }
 
-            // Hash the password
-            var passwordHash = HashPassword(registerDto.Password);
-
             // Create new user
             var user = new User
             {
-                Username = registerDto.Username,
-                PasswordHash = passwordHash,
+                UserName = registerDto.Username,
+                Email = registerDto.Email,
                 FirstName = registerDto.FirstName,
                 LastName = registerDto.LastName,
-                Email = registerDto.Email
+                EmailConfirmed = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            var result = await _userManager.CreateAsync(user, registerDto.Password);
+            if (!result.Succeeded)
+            {
+                return BadRequest(result.Errors.Select(e => e.Description));
+            }
 
             // Generate JWT token
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtToken(user);
 
-            // Return user info with token
             return Ok(new AuthResponseDto
             {
                 User = new UserDto
                 {
                     Id = user.Id,
-                    Username = user.Username,
+                    Username = user.UserName!,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    Email = user.Email
+                    Email = user.Email!,
+                    Roles = await _userManager.GetRolesAsync(user)
                 },
                 Token = token
             });
@@ -69,32 +77,35 @@ namespace server.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<AuthResponseDto>> Login(LoginDto loginDto)
         {
-            // Find user by username
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginDto.Username);
+            // Find user by username or email
+            var user = await _userManager.FindByNameAsync(loginDto.Username) ?? 
+                      await _userManager.FindByEmailAsync(loginDto.Username);
             
             if (user == null)
             {
-                return Unauthorized("Invalid username or password");
+                return Unauthorized("Invalid username/email or password");
             }
 
             // Verify password
-            if (!VerifyPassword(loginDto.Password, user.PasswordHash))
+            var result = await _signInManager.CheckPasswordSignInAsync(user, loginDto.Password, false);
+            if (!result.Succeeded)
             {
-                return Unauthorized("Invalid username or password");
+                return Unauthorized("Invalid username/email or password");
             }
 
             // Generate JWT token
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtToken(user);
 
             return Ok(new AuthResponseDto
             {
                 User = new UserDto
                 {
                     Id = user.Id,
-                    Username = user.Username,
+                    Username = user.UserName!,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    Email = user.Email
+                    Email = user.Email!,
+                    Roles = await _userManager.GetRolesAsync(user)
                 },
                 Token = token
             });
@@ -130,27 +141,28 @@ namespace server.Controllers
                 }, out SecurityToken validatedToken);
 
                 var jwtToken = (JwtSecurityToken)validatedToken;
-                var userId = int.Parse(jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value);
+                var userId = jwtToken.Claims.First(x => x.Type == ClaimTypes.NameIdentifier).Value;
 
                 // Get user from database
-                var user = await _context.Users.FindAsync(userId);
+                var user = await _userManager.FindByIdAsync(userId);
                 if (user == null)
                 {
                     return Unauthorized("User not found");
                 }
 
                 // Generate new token
-                var newToken = GenerateJwtToken(user);
+                var newToken = await GenerateJwtToken(user);
 
                 return Ok(new AuthResponseDto
                 {
                     User = new UserDto
                     {
                         Id = user.Id,
-                        Username = user.Username,
+                        Username = user.UserName!,
                         FirstName = user.FirstName,
                         LastName = user.LastName,
-                        Email = user.Email
+                        Email = user.Email!,
+                        Roles = await _userManager.GetRolesAsync(user)
                     },
                     Token = newToken
                 });
@@ -161,20 +173,7 @@ namespace server.Controllers
             }
         }
 
-        private string HashPassword(string password)
-        {
-            using var sha256 = SHA256.Create();
-            var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-            return Convert.ToBase64String(hashedBytes);
-        }
-
-        private bool VerifyPassword(string password, string hash)
-        {
-            var hashedPassword = HashPassword(password);
-            return hashedPassword == hash;
-        }
-
-        private string GenerateJwtToken(User user)
+        private async Task<string> GenerateJwtToken(User user)
         {
             var jwtKey = _configuration["Jwt:Key"];
             var jwtIssuer = _configuration["Jwt:Issuer"];
@@ -188,17 +187,23 @@ namespace server.Controllers
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            var claims = new[]
+            // Get user roles
+            var roles = await _userManager.GetRolesAsync(user);
+            var roleClaims = roles.Select(role => new Claim(ClaimTypes.Role, role)).ToList();
+
+            var claims = new List<Claim>
             {
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username)
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Name, user.UserName!),
+                new Claim(ClaimTypes.Email, user.Email!)
             };
+            claims.AddRange(roleClaims);
 
             var token = new JwtSecurityToken(
                 issuer: jwtIssuer,
                 audience: jwtAudience,
                 claims: claims,
-                expires: DateTime.Now.AddDays(7),
+                expires: DateTime.UtcNow.AddDays(7),
                 signingCredentials: credentials
             );
 
@@ -235,10 +240,11 @@ namespace server.Controllers
 
     public class UserDto
     {
-        public int Id { get; set; }
+        public string Id { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+        public IList<string> Roles { get; set; } = new List<string>();
     }
 } 
