@@ -385,3 +385,5 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml 
+# Secrets and sensitive configuration
+server/secrets.json

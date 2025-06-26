@@ -8,6 +8,13 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load secrets file if it exists
+var secretsPath = Path.Combine(builder.Environment.ContentRootPath, "secrets.json");
+if (File.Exists(secretsPath))
+{
+    builder.Configuration.AddJsonFile(secretsPath, optional: false, reloadOnChange: true);
+}
+
 // Add CORS
 builder.Services.AddCors(options =>
 {
@@ -103,7 +110,8 @@ using (var scope = app.Services.CreateScope())
     }
     
     // Create Admin user if it doesn't exist
-    var adminEmail = "admin@todoapp.com";
+    var adminEmail = builder.Configuration["AdminCredentials:DefaultAdminEmail"] ?? "admin@todoapp.com";
+    var adminPassword = builder.Configuration["AdminCredentials:DefaultAdminPassword"] ?? "Admin123!";
     var adminUser = await userManager.FindByEmailAsync(adminEmail);
     
     if (adminUser == null)
@@ -119,7 +127,7 @@ using (var scope = app.Services.CreateScope())
             UpdatedAt = DateTime.UtcNow
         };
         
-        var result = await userManager.CreateAsync(adminUser, "Admin123!");
+        var result = await userManager.CreateAsync(adminUser, adminPassword);
         if (result.Succeeded)
         {
             await userManager.AddToRoleAsync(adminUser, "Admin");
