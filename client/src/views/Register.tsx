@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
+import API from '../utils/Api';
 import { Input, ErrorAlert, Button, Icon } from '../components/Index';
 
 interface RegisterForm {
@@ -51,7 +51,7 @@ const Register = () => {
         setError('');
 
         try {
-            const response = await api.post('/auth/register', {
+            const response = await API.post('/auth/register', {
                 username: formData.username,
                 firstName: formData.firstName,
                 lastName: formData.lastName,

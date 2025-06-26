@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../utils/api';
-import { Input, ErrorAlert, Button, Icon } from '../components/Index';
+import { Input, Button, Icon } from '../components/Index';
 import { toast } from 'react-toastify';
 
 interface LoginForm {

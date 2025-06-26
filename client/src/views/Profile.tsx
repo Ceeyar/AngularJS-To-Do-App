@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from "../components/Header";
-import api from '../utils/api';
+import API from '../utils/api';
 import { Input, ErrorAlert, Button, Icon } from '../components/Index';
 
 interface ProfileForm {
@@ -37,7 +37,7 @@ const Profile = () => {
 
     const fetchUserProfile = async () => {
         try {
-            const response = await api.get('/users/profile');
+            const response = await API.get('/users/profile');
             const userData = response.data;
             setUser(userData);
             setFormData(prev => ({
@@ -108,7 +108,7 @@ const Profile = () => {
                 updateData.newPassword = formData.newPassword;
             }
 
-            const response = await api.put('/users/profile', updateData);
+            const response = await API.put('/users/profile', updateData);
 
             // Update local storage with new user data
             const updatedUser = { ...user, ...response.data };
@@ -141,7 +141,7 @@ const Profile = () => {
         setError('');
 
         try {
-            await api.delete('/users/profile');
+            await API.delete('/users/profile');
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             navigate('/login');

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { todoApi } from '../utils/api';
+import { todoAPI } from '../utils/api';
 import { Icon } from '../components/Index';
 
 interface Todo {
@@ -13,7 +12,6 @@ interface Todo {
 }
 
 const Home = () => {
-    const navigate = useNavigate();
     const [todos, setTodos] = useState<Todo[]>([]);
     const [newTodo, setNewTodo] = useState('');
     const [isAdding, setIsAdding] = useState(false);
@@ -29,7 +27,7 @@ const Home = () => {
         try {
             setIsLoading(true);
             setError('');
-            const data = await todoApi.getAll();
+            const data = await todoAPI.getAll();
             setTodos(data);
         } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to load todos');
@@ -37,12 +35,6 @@ const Home = () => {
         } finally {
             setIsLoading(false);
         }
-    };
-
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        navigate('/login');
     };
 
     const handleAddTodo = async (e: React.FormEvent) => {
@@ -53,7 +45,7 @@ const Home = () => {
             setIsAdding(true);
             setError('');
 
-            const createdTodo = await todoApi.create({ text: newTodo.trim() });
+            const createdTodo = await todoAPI.create({ text: newTodo.trim() });
             setTodos([createdTodo, ...todos]);
             setNewTodo('');
         } catch (err: any) {
@@ -69,9 +61,33 @@ const Home = () => {
             const todo = todos.find(t => t.id === id);
             if (!todo) return;
 
-            const updatedTodo = await todoApi.toggle(id, !todo.completed);
-            setTodos(todos.map(t => t.id === id ? updatedTodo : t));
+            const originalCompleted = todo.completed;
+
+            // Optimistically update the UI first
+            setTodos(prevTodos =>
+                prevTodos.map(t =>
+                    t.id === id ? { ...t, completed: !originalCompleted } : t
+                )
+            );
+
+            // Then make the API call
+            const updatedTodo = await todoAPI.toggle(id, !originalCompleted);
+
+            // Update with the server response to ensure consistency
+            setTodos(prevTodos =>
+                prevTodos.map(t => t.id === id ? updatedTodo : t)
+            );
+
         } catch (err: any) {
+            // Revert the optimistic update on error
+            const todo = todos.find(t => t.id === id);
+            if (todo) {
+                setTodos(prevTodos =>
+                    prevTodos.map(t =>
+                        t.id === id ? { ...t, completed: todo.completed } : t
+                    )
+                );
+            }
             setError(err.response?.data?.message || 'Failed to update todo');
             console.error('Error updating todo:', err);
         }
@@ -79,7 +95,7 @@ const Home = () => {
 
     const deleteTodo = async (id: number) => {
         try {
-            await todoApi.delete(id);
+            await todoAPI.delete(id);
             setTodos(todos.filter(todo => todo.id !== id));
         } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to delete todo');
@@ -90,7 +106,7 @@ const Home = () => {
     const clearCompleted = async () => {
         try {
             const completedTodos = todos.filter(todo => todo.completed);
-            await Promise.all(completedTodos.map(todo => todoApi.delete(todo.id)));
+            await Promise.all(completedTodos.map(todo => todoAPI.delete(todo.id)));
             setTodos(todos.filter(todo => !todo.completed));
         } catch (err: any) {
             setError(err.response?.data?.message || 'Failed to clear completed todos');
@@ -100,7 +116,7 @@ const Home = () => {
 
     const completedCount = todos.filter(t => t.completed).length;
     const pendingCount = todos.filter(t => !t.completed).length;
-
+    console.log(todos);
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 relative overflow-hidden">
             {/* Background decorative elements */}
