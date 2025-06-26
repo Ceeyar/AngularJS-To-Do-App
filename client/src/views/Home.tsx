@@ -160,7 +160,7 @@ const Home = () => {
                         <button
                             type="submit"
                             disabled={!newTodo.trim() || isAdding}
-                            className="px-8 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white rounded-xl hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg font-semibold flex items-center space-x-3"
+                            className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg font-semibold flex items-center space-x-3"
                         >
                             {isAdding ? (
                                 <>
